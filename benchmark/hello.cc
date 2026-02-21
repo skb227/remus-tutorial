@@ -3,6 +3,10 @@
 #include <vector>
 #include "cloudlab.h"
 
+struct SharedObject {
+  uint64_t value[1024];
+}
+
 int main(int argc, char **argv) {
   remus::INIT();
 
@@ -65,9 +69,30 @@ int main(int argc, char **argv) {
 
   // create Compute Threads so they can signal to the MNs that they've completed
   if (id >= c0 && id <= cn) {
+    // create a context for each Compute Thread
     std::vector<std::shared_ptr<remus::ComputeThread>> compute_threads; 
     for (uint64_t i = 0; i < args->uget(remus::CN_THREADS); ++i) {
       compute_threads.push_back(std::make_shared<remus::ComputeThread>(id, compute_node, args)); 
     }
+
+  
+  // create the shared object and initialize it
+  // the process is still sequential
+  // the main thread on CN0 will create the shared object using one of the 
+  //   available ComputeThread objects
+  if (id == c0) {
+    // when you call allocate, Remus will use --alloc-pol flag to determine
+    //   which MN the current Compute Thread should allocate from
+    auto ptr = compute_threads[0]->allocate<SharedObject>();
+    for (unsigned i = 0; i < 1024; ++i) {
+      // since the memory isn't local, need to initialize it explicitly
+      compute_threads[0]->Write<uint64_t>(
+		    remus::rdma_ptr<uint64_t>(ptr.raw() +
+			                      offsetof(SharedObject, values[0])), 
+		    (uint64_t)0);  
+    }
+    // make the SharedObject visible through the global root pointer, 
+    //   which is at MN0, Segment 0
+    compute_threads[0]->set_root(ptr);
   }  
 }
