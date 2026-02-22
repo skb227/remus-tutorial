@@ -94,5 +94,111 @@ int main(int argc, char **argv) {
     // make the SharedObject visible through the global root pointer, 
     //   which is at MN0, Segment 0
     compute_threads[0]->set_root(ptr);
+
+    // now we've got a properly initialized object and it's globally accessible through the root pointer 
+    
+
+    // !! start some threads !! //
+    
+    // barriers will need to know the total number of threads across all machines
+    uint64_t total_threads = (cn - c0 + 1) * args->uget(remus::CN_THREADS);
+
+    // create threads on this Compute Node
+    //   the main thread will stop doing work now 
+    std::vector<std::thread> local_threads; 
+    for (uint64_t i = 0; i < threads, ++i) {
+      uint64_t local_id = i; 
+      uint64_t global_thread_id = id * threads + i; 
+      auto t = compute_threads[i]; 
+      local_threads.push_back(std::thread([t, global_thread_id, total_threads, local_id, id]() {
+        // all threads, on all machines, synchronize here
+	// ensures that the initialization is done and the root is updated before
+	//   any machine passes the next line 
+	t->arrive_control_barrier(total_threads);
+	auto root = t->get_root<SharedObject>();
+	// ...
+      }));
   }  
+
+  // the above -- uses the sense-reversing barrier in MN 0 to ensure that no threads
+  //   reads the root until ALL threads have reached the barrier
+  // the threads on CN 0 won't even run until AFTER CN 0 has written the root
+  //   so that's a guaranteed that no thread will read the root before it's 
+  //   initialized
+
+  // now, after the loop, join all of the threads
+  for (auto &t : local_threads) {
+    t.join();
+  }
+
+
+  // now, reading and writing of the SharedObject:
+
+  // read from a unique location in SharedObject, ensure it's 0 
+  auto my_loc = remus::rdma_ptr<uint64_t>(
+    root.raw() + offsetof(SharedObject, values[global_thread_id + 1]));
+  uint64_t my_val = t->Read<uint64_t>(my_loc);
+  if (my_val != 0) {
+    REMUS_FATAL("Thread {}: Read observed {}", global_thread_id, my_val);
+  }
+
+  // write a unique value to that location
+  t->Write<uint64_t>(my_loc, global_thread_id); 
+
+  // use a CompareAndSwap to increment it by 1
+  bool success = 
+      global_thread_id == 
+      t->CompareAndSwap(my_loc, global_thread_id, global_thread_id+1); 
+  if (!success) {
+    REMUS_FATAL("Thread {}: CAS failed", global_thread_id); 
+  }
+
+  // wait for all threads to finish work 
+  t->arrive_control_barrier(total_threads);
+
+  // the above: 
+  //   my_loc is a convenience pointer, avoids having to re-compute the same
+  //     offset for each Read, Write, and CompareAndSwap
+  //   reading and writing have the same general format as in other concurrent
+  //     programming environments (ex. transactional memory)
+  //   CompareAndSwap is roughly equivalent to std::atmoic<T>::compare_exchange_strong
+  //     but it returns the value it observed, not a boolean 
+
+
+
+  // veiry the result of the compution 
+  // here -- thread 0 of Compute Node 0 can read from the SharedObject to
+  //   ensure that each thread did what it was supposed to do 
+
+  // now thread 0 can check everything
+  if (global_thread_id == 0) {
+    for (uint64_t i = 1; i < total_threads + 1; ++i) {
+      auto found = t->Read<uint64_t>(remus::rdma_ptr<uint64_t>(
+        root.raw() + offsetof(SharedObject, values[i]))); 
+      if (found != i) {
+	REMUS_FATAL("in position {}, expected {}, found{}", i, i, found); 
+      }
+      REMUS_INFO("All checks succeeded");
+    }
+  }
+
+
+  // before threads shut down, clean up the data structure
+
+  // reclaim the object before terminating
+  if (global_thread_id == 0) {
+    t->deallocate(root); 
+    t->set_root(remus::rdma_ptr<SharedObject>(nullptr));
+  }
+
+  // NOTE -- this code runs BEFORE the ComputeThread is reclaimed
+  //   ComputeThread destruction triggers MemoryNode reclamation - wouldn't
+  //     want reclamation to be attempted after the MN has already been cleaned up
+
+
+  // for now, Remus uses per-thread free lists when reclaiming memory, and 
+  //   favors those on future allocations
+  // satisfactory for programs where all threads have the same pattern of
+  //   allocations
+
 }
