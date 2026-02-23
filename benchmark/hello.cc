@@ -26,6 +26,9 @@ int main(int argc, char **argv) {
   uint64_t mn = args->uget(remus::LAST_MN_ID);
   uint64_t c0 = args->uget(remus::FIRST_CN_ID);
   uint64_t cn = args->uget(remus::LAST_CN_ID);
+  uint64_t threads = args->uget(remus::CN_THREADS);
+
+  // 
 
   // using id_to_dns_name from cloudlab.h and the m0 and mn arguments, 
   // 	can compute the DNS names of the machines that will serve as memory nodes
