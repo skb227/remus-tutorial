@@ -96,7 +96,7 @@ int main (int argc, char **argv) {
                     set_t set_handler(set_ptr); // calls the constructor for LockFreeList
 
                     // make a workload manager for this thread
-                    test_t workload(set_handle, i, id); 
+                    test_t workload(set_handler, i, id); 
                     ct->arrive_control_barrier(total_threads);
 
                     // prefill the data structure
@@ -122,7 +122,7 @@ int main (int argc, char **argv) {
                     // "lead thread" will reclaim the data structure and then put a global 
                     //      metrics object into the root
                     if (id == c0 && i == 0) {
-                        set_handle.destroy(ct);
+                        set_handler.destroy(ct);
                         auto metrics = ct->allocate<Metrics>(); 
                         ct->Write(metrics, Metrics()); 
                         ct->set_root(metrics);

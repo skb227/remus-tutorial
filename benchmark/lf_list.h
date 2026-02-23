@@ -108,7 +108,7 @@ public:
   Node *make_unmarked(Node *ptr) { return (Node *)unset_mark((uintptr_t)ptr); }
 
   // set the low bit of a pointer
-  Node *mark_marked(Node *ptr) { return (Node *)set_mark((uintptr_t)ptr); }
+  Node *make_marked(Node *ptr) { return (Node *)set_mark((uintptr_t)ptr); }
 
   /// report if a key is present in the set
   ///
