@@ -116,7 +116,7 @@ template <typename S, typename K> struct IntSetTest {
         // how many keys to insert within that range? 
         auto num_keys = (key_ub - key_lb + 1) * params->uget(PREFILL) / 100 / total_threads; 
         // now do the insert
-        auto start_key = key_lab + thread_id_ * range_length; 
+        auto start_key = key_lb + thread_id_ * range_length; 
         auto end_key = start_key + range_length; 
         auto step = (end_key - start_key) / num_keys; 
         for (auto key = start_key; key < end_key; key += step) {
@@ -137,7 +137,7 @@ template <typename S, typename K> struct IntSetTest {
         ct->FetchAndAdd(rdma_ptr<uint64_t>(base + offsetof(Metrics, ins_f)), metrics_.ins_f); 
         ct->FetchAndAdd(rdma_ptr<uint64_t>(base + offsetof(Metrics, rmv_t)), metrics_.rmv_t);
         ct->FetchAndAdd(rdma_ptr<uint64_t>(base + offsetof(Metrics, rmv_f)), metrics_.rmv_f); 
-        ct->FetchAndAdd(rdma_ptr<uint64_v>(base + offsetof(Metrics, op_count)), metrics_.op_count);
+        ct->FetchAndAdd(rdma_ptr<uint64_t>(base + offsetof(Metrics, op_count)), metrics_.op_count);
         ct->FetchAndAdd(rdma_ptr<uint64_t>(base + offsetof(Metrics, write_ops)), ct->metrics_.write.ops);
         ct->FetchAndAdd(rdma_ptr<uint64_t>(base + offsetof(Metrics, write_bytes)), ct->metrics_.write.bytes);
         ct->FetchAndAdd(rdma_ptr<uint64_t>(base + offsetof(Metrics, read_ops)), ct->metrics_.read.ops);

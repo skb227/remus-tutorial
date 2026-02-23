@@ -6,7 +6,7 @@
 
 #include "cloudlab.h"
 #include "intset_test.h"
-#include "lazy_list.h"
+//#include "lazy_list.h"
 
 int main (int argc, char **argv) {
     using Key_t = uint64_t; 

@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
     for (uint64_t i = 0; i < args->uget(remus::CN_THREADS); ++i) {
       compute_threads.push_back(std::make_shared<remus::ComputeThread>(id, compute_node, args)); 
     }
-
+  }
   
   // create the shared object and initialize it
   // the process is still sequential
@@ -88,12 +88,14 @@ int main(int argc, char **argv) {
       // since the memory isn't local, need to initialize it explicitly
       compute_threads[0]->Write<uint64_t>(
 		    remus::rdma_ptr<uint64_t>(ptr.raw() +
-			                      offsetof(SharedObject, values[0])), 
+			                      offsetof(SharedObject, values[i])), 
 		    (uint64_t)0);  
     }
     // make the SharedObject visible through the global root pointer, 
     //   which is at MN0, Segment 0
     compute_threads[0]->set_root(ptr);
+
+  }
 
     // now we've got a properly initialized object and it's globally accessible through the root pointer 
     
@@ -106,30 +108,30 @@ int main(int argc, char **argv) {
     // create threads on this Compute Node
     //   the main thread will stop doing work now 
     std::vector<std::thread> local_threads; 
-    for (uint64_t i = 0; i < threads, ++i) {
+    for (uint64_t i = 0; i < threads; ++i) {
       uint64_t local_id = i; 
       uint64_t global_thread_id = id * threads + i; 
       auto t = compute_threads[i]; 
       local_threads.push_back(std::thread([t, global_thread_id, total_threads, local_id, id]() {
         // all threads, on all machines, synchronize here
-	// ensures that the initialization is done and the root is updated before
-	//   any machine passes the next line 
-	t->arrive_control_barrier(total_threads);
-	auto root = t->get_root<SharedObject>();
-	// ...
-      }));
-  }  
+        // ensures that the initialization is done and the root is updated before
+        //   any machine passes the next line 
+        t->arrive_control_barrier(total_threads);
+        auto root = t->get_root<SharedObject>();
+        // ...
+            }));
+    }  
 
-  // the above -- uses the sense-reversing barrier in MN 0 to ensure that no threads
-  //   reads the root until ALL threads have reached the barrier
-  // the threads on CN 0 won't even run until AFTER CN 0 has written the root
-  //   so that's a guaranteed that no thread will read the root before it's 
-  //   initialized
+    // the above -- uses the sense-reversing barrier in MN 0 to ensure that no threads
+    //   reads the root until ALL threads have reached the barrier
+    // the threads on CN 0 won't even run until AFTER CN 0 has written the root
+    //   so that's a guaranteed that no thread will read the root before it's 
+    //   initialized
 
-  // now, after the loop, join all of the threads
-  for (auto &t : local_threads) {
-    t.join();
-  }
+    // now, after the loop, join all of the threads
+    for (auto &t : local_threads) {
+      t.join();
+    }
 
 
   // now, reading and writing of the SharedObject:
