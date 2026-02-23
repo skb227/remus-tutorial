@@ -39,7 +39,7 @@ int main (int argc, char **argv) {
     std::unique_ptr<remus::MemoryNode> memory_node; 
 
     // information needed if this machine will operate as a compute node
-    std::unique_ptr<remus::CompteNude> compute_node; 
+    std::unique_ptr<remus::CompteNode> compute_node; 
 
     // memory node configuration must come first !!
     if (id >= m0 && id <= mn) {
@@ -70,7 +70,7 @@ int main (int argc, char **argv) {
     if (id >= c0 && id <= cn) {
         // create ComputeThread contexts
         std::vector<std::shared_ptr<remus::ComputeThread>> compute_threads; 
-        uint64_t total_threads = (cn - c0 + 1) + args->uget(remus::CN_THREADS); 
+        uint64_t total_threads = (cn - c0 + 1) * args->uget(remus::CN_THREADS); 
         for (uint64_t i = 0; i < args->uget(remus::CN_THREADS); ++i) {
             compute_threads.push_back(
                 std::make_shared<remus::ComputeThread>(id, compute_node, args)); 
@@ -86,7 +86,7 @@ int main (int argc, char **argv) {
         std::vector<std::thread> worker_threads; 
         for (uint64_t i = 0; i < args->uget(remus::CN_THREADS); i++) {
             worker_threads.push_back(std::thread(
-                [&](uint64_t) {
+                [&](uint64_t i) {
                     auto &ct = compute_threads[i]; 
                     // wait for all threads to be created
                     ct->arrive_control_barrier(total_threads);
@@ -104,7 +104,7 @@ int main (int argc, char **argv) {
                     ct->arrive_control_barrier(total_threads);
 
                     // get the starting time before any thread does any work 
-                    std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution::clock::now(); 
+                    std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now(); 
                     ct->arrive_control_barrier(total_threads);
 
                     // run the workload
@@ -113,7 +113,7 @@ int main (int argc, char **argv) {
 
                     // compute the end time
                     auto end_time = std::chrono::high_resolution_clock::now(); 
-                    auto duration = std::chrono::duration_cast<std::chrono::microseconds(
+                    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                         end_time - start_time).count(); 
                     
                     // reclaim memory from prior phase
@@ -145,4 +145,5 @@ int main (int argc, char **argv) {
             t.join(); 
         }
     }
+    return 0; 
 };

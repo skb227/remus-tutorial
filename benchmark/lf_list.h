@@ -79,7 +79,7 @@ template <typename K> class LazyListSet {
 
     auto list = ct->New<LazyListSet>(); 
     list->head_.store(tail, ct); 
-    
+
     return rdma_ptr<LazyListSet>((uintptr_t)list); 
   }
 
@@ -246,4 +246,4 @@ template <typename K> class LazyListSet {
     }
     ct->Delete(This); 
   }
-}
+};

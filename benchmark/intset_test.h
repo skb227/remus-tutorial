@@ -3,6 +3,7 @@
 #include <atomic>
 #include <csignal>
 #include <random>
+#include <fstream>
 
 #include <remus/remus.h>
 
