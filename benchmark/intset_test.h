@@ -70,7 +70,7 @@ struct Metrics {
         file << "write: " << compute_thread->metrics_.write.ops << std::endl;
         file << "bytes_write: " << compute_thread->metrics_.write.bytes << std::endl; 
         file << "read: " << compute_thread->metrics_.read.ops << std::endl; 
-        file << "bytes_read: " << compute_thread->metrics_.reads.bytes << std::endl; 
+        file << "bytes_read: " << compute_thread->metrics_.read.bytes << std::endl; 
         file << "faa: " << compute_thread->metrics_.faa << std::endl; 
         file << "cas: " << compute_thread->metrics_.cas << std::endl; 
     }
