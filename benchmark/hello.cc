@@ -4,7 +4,7 @@
 #include "cloudlab.h"
 
 struct SharedObject {
-  uint64_t value[1024];
+  uint64_t values[1024];
 };
 
 int main(int argc, char **argv) {
@@ -68,12 +68,13 @@ int main(int argc, char **argv) {
   }
 
   // create Compute Threads so they can signal to the MNs that they've completed
+  std::vector<std::shared_ptr<remus::ComputeThread>> compute_threads; 
   if (id >= c0 && id <= cn) {
     // create a context for each Compute Thread
-    std::vector<std::shared_ptr<remus::ComputeThread>> compute_threads; 
     for (uint64_t i = 0; i < args->uget(remus::CN_THREADS); ++i) {
       compute_threads.push_back(std::make_shared<remus::ComputeThread>(id, compute_node, args)); 
     }
+  }
   
   // create the shared object and initialize it
   // the process is still sequential
@@ -93,7 +94,7 @@ int main(int argc, char **argv) {
     // make the SharedObject visible through the global root pointer, 
     //   which is at MN0, Segment 0
     compute_threads[0]->set_root(ptr);
-  }
+
   }
 
     // now we've got a properly initialized object and it's globally accessible through the root pointer 
@@ -117,7 +118,70 @@ int main(int argc, char **argv) {
         //   any machine passes the next line 
         t->arrive_control_barrier(total_threads);
         auto root = t->get_root<SharedObject>();
-        // ...
+        
+          // now, reading and writing of the SharedObject:
+
+        // read from a unique location in SharedObject, ensure it's 0 
+        auto my_loc = remus::rdma_ptr<uint64_t>(
+          root.raw() + offsetof(SharedObject, values[global_thread_id + 1]));
+        uint64_t my_val = t->Read<uint64_t>(my_loc);
+        if (my_val != 0) {
+          REMUS_FATAL("Thread {}: Read observed {}", global_thread_id, my_val);
+        }
+
+        // write a unique value to that location
+        t->Write<uint64_t>(my_loc, global_thread_id); 
+
+        // use a CompareAndSwap to increment it by 1
+        bool success = 
+            global_thread_id == 
+            t->CompareAndSwap(my_loc, global_thread_id, global_thread_id+1); 
+        if (!success) {
+          REMUS_FATAL("Thread {}: CAS failed", global_thread_id); 
+        }
+
+        // wait for all threads to finish work 
+        t->arrive_control_barrier(total_threads);
+
+        // the above: 
+        //   my_loc is a convenience pointer, avoids having to re-compute the same
+        //     offset for each Read, Write, and CompareAndSwap
+        //   reading and writing have the same general format as in other concurrent
+        //     programming environments (ex. transactional memory)
+        //   CompareAndSwap is roughly equivalent to std::atmoic<T>::compare_exchange_strong
+        //     but it returns the value it observed, not a boolean 
+
+
+
+        // veiry the result of the compution 
+        // here -- thread 0 of Compute Node 0 can read from the SharedObject to
+        //   ensure that each thread did what it was supposed to do 
+
+        // now thread 0 can check everything
+        if (global_thread_id == 0) {
+          for (uint64_t i = 1; i < total_threads + 1; ++i) {
+            auto found = t->Read<uint64_t>(remus::rdma_ptr<uint64_t>(
+              root.raw() + offsetof(SharedObject, values[i]))); 
+            if (found != i) {
+              REMUS_FATAL("in position {}, expected {}, found{}", i, i, found); 
+            }
+            REMUS_INFO("All checks succeeded");
+          }
+        }
+
+
+        // before threads shut down, clean up the data structure
+
+        // reclaim the object before terminating
+        if (global_thread_id == 0) {
+          t->deallocate(root); 
+          t->set_root(remus::rdma_ptr<SharedObject>(nullptr));
+        }
+
+        // NOTE -- this code runs BEFORE the ComputeThread is reclaimed
+        //   ComputeThread destruction triggers MemoryNode reclamation - wouldn't
+        //     want reclamation to be attempted after the MN has already been cleaned up
+
             }));
     }  
 
@@ -131,71 +195,6 @@ int main(int argc, char **argv) {
     for (auto &t : local_threads) {
       t.join();
     }
-
-
-  // now, reading and writing of the SharedObject:
-
-  // read from a unique location in SharedObject, ensure it's 0 
-  auto my_loc = remus::rdma_ptr<uint64_t>(
-    root.raw() + offsetof(SharedObject, values[global_thread_id + 1]));
-  uint64_t my_val = t->Read<uint64_t>(my_loc);
-  if (my_val != 0) {
-    REMUS_FATAL("Thread {}: Read observed {}", global_thread_id, my_val);
-  }
-
-  // write a unique value to that location
-  t->Write<uint64_t>(my_loc, global_thread_id); 
-
-  // use a CompareAndSwap to increment it by 1
-  bool success = 
-      global_thread_id == 
-      t->CompareAndSwap(my_loc, global_thread_id, global_thread_id+1); 
-  if (!success) {
-    REMUS_FATAL("Thread {}: CAS failed", global_thread_id); 
-  }
-
-  // wait for all threads to finish work 
-  t->arrive_control_barrier(total_threads);
-
-  // the above: 
-  //   my_loc is a convenience pointer, avoids having to re-compute the same
-  //     offset for each Read, Write, and CompareAndSwap
-  //   reading and writing have the same general format as in other concurrent
-  //     programming environments (ex. transactional memory)
-  //   CompareAndSwap is roughly equivalent to std::atmoic<T>::compare_exchange_strong
-  //     but it returns the value it observed, not a boolean 
-
-
-
-  // veiry the result of the compution 
-  // here -- thread 0 of Compute Node 0 can read from the SharedObject to
-  //   ensure that each thread did what it was supposed to do 
-
-  // now thread 0 can check everything
-  if (global_thread_id == 0) {
-    for (uint64_t i = 1; i < total_threads + 1; ++i) {
-      auto found = t->Read<uint64_t>(remus::rdma_ptr<uint64_t>(
-        root.raw() + offsetof(SharedObject, values[i]))); 
-      if (found != i) {
-	REMUS_FATAL("in position {}, expected {}, found{}", i, i, found); 
-      }
-      REMUS_INFO("All checks succeeded");
-    }
-  }
-
-
-  // before threads shut down, clean up the data structure
-
-  // reclaim the object before terminating
-  if (global_thread_id == 0) {
-    t->deallocate(root); 
-    t->set_root(remus::rdma_ptr<SharedObject>(nullptr));
-  }
-
-  // NOTE -- this code runs BEFORE the ComputeThread is reclaimed
-  //   ComputeThread destruction triggers MemoryNode reclamation - wouldn't
-  //     want reclamation to be attempted after the MN has already been cleaned up
-
 
   // for now, Remus uses per-thread free lists when reclaiming memory, and 
   //   favors those on future allocations
