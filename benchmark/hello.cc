@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
       auto t = compute_threads[i]; 
       local_threads.push_back(std::thread([t, global_thread_id, total_threads, local_id, id]() {
         // to get the warnings to shut up
-        (void *) local_id; (void *) id; 
+        (void) local_id; (void) id; 
         // all threads, on all machines, synchronize here
         // ensures that the initialization is done and the root is updated before
         //   any machine passes the next line 
