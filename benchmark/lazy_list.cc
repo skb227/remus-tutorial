@@ -39,7 +39,7 @@ int main (int argc, char **argv) {
     std::unique_ptr<remus::MemoryNode> memory_node; 
 
     // information needed if this machine will operate as a compute node
-    std::unique_ptr<remus::CompteNode> compute_node; 
+    std::unique_ptr<remus::ComputeNode> compute_node; 
 
     // memory node configuration must come first !!
     if (id >= m0 && id <= mn) {

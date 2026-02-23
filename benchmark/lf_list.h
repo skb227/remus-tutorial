@@ -53,7 +53,7 @@ template <typename K> class LazyListSet {
     void release(CT &ct) { lock_.store(0, ct);  }
   };
 
-
+public:
   // (member variables)
 
   // the head and tail sentinel pointers will also be Atomic
