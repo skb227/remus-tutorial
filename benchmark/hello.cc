@@ -5,7 +5,7 @@
 
 struct SharedObject {
   uint64_t value[1024];
-}
+};
 
 int main(int argc, char **argv) {
   remus::INIT();
@@ -74,7 +74,6 @@ int main(int argc, char **argv) {
     for (uint64_t i = 0; i < args->uget(remus::CN_THREADS); ++i) {
       compute_threads.push_back(std::make_shared<remus::ComputeThread>(id, compute_node, args)); 
     }
-  }
   
   // create the shared object and initialize it
   // the process is still sequential
@@ -94,7 +93,7 @@ int main(int argc, char **argv) {
     // make the SharedObject visible through the global root pointer, 
     //   which is at MN0, Segment 0
     compute_threads[0]->set_root(ptr);
-
+  }
   }
 
     // now we've got a properly initialized object and it's globally accessible through the root pointer 
