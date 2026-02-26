@@ -9,10 +9,10 @@
 #           folder
 #
 # EXAMPLE:  exefile="build/rdma/multinode_test"
-exefile=build/benchmark/hello
+exefile=build/benchmark/lazy_list
 
 # The arguments that are common to all of the invocations of `exefile` for the
 # experiment.  This should not include `--node-id`, since that varies by node
 #
 # EXAMPLE: experiment_args="--seg-size 29 --segs-per-mn 2 --first-cn-id 2 --last-cn-id 3 --first-mn-id 0 --last-mn-id 1 --qp-lanes 2 --qp-sched-pol RR --mn-port 33330 --cn-threads 2 --cn-ops-per-thread 4 --cn-thread-bufsz 20 --alloc-pol GLOBAL-RR"
-experiment_args="--seg-size 29 --segs-per-mn 2 --first-cn-id 2 --last-cn-id 2 --first-mn-id 0 --last-mn-id 1 --qp-lanes 2 --qp-sched-pol RR --mn-port 33330 --cn-threads 2 --cn-ops-per-thread 4 --cn-thread-bufsz 20 --alloc-pol GLOBAL-RR"
+experiment_args="--seg-size 29 --segs-per-mn 2 --first-cn-id 4 --last-cn-id 9 --first-mn-id 0 --last-mn-id 3 --qp-lanes 2 --qp-sched-pol RR --mn-port 33330 --cn-threads 2 --cn-ops-per-thread 4 --cn-thread-bufsz 20 --alloc-pol GLOBAL-RR"
