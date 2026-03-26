@@ -78,7 +78,7 @@ public:
     head->next_.store(tail, ct);
 
     auto list = ct->New<LazyListSet>(); 
-    list->head_.store(tail, ct); 
+    list->head_.store(head, ct); 
 
     return rdma_ptr<LazyListSet>((uintptr_t)list); 
   }
