@@ -15,7 +15,7 @@ domain=apt.emulab.net
 #           order in the CloudLab "List View" for your experiment.
 #
 # EXAMPLE: machines=(apt003 apt007 apt005)
-machines=(apt118 apt114 apt107 apt113 apt111 apt110 apt112 apt115 apt095 apt117)
+machines=(apt145 apt141 apt161 apt146 apt140 apt147)
 
 # The user who is going to be using ssh/scp to connect to cloudlab.  It is
 # expected that ssh keys are already set up.

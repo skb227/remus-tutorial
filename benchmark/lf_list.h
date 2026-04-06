@@ -70,17 +70,30 @@ public:
   ///
   /// @return  	  an rdma_ptr to the newly allocate, initialized, empty list
   static rdma_ptr<LazyListSet> New(CT &ct) {
-    auto tail = ct->New<Node>(); 
-    tail->init(K(), ct); 
+    auto tail = ct->New<Node>();
+    tail->init(K(), ct);
+
+    // try to flush here too
+    volatile auto _f1 = tail->next_.load(ct);
+    _f1; 
 
     auto head = ct->New<Node>();
     head->init(K(), ct);
     head->next_.store(tail, ct);
 
-    auto list = ct->New<LazyListSet>(); 
-    list->head_.store(head, ct); 
+    // try to flush here too 
+    volatile auto _f2 = head->next_.load(ct);
+    _f2; 
 
-    return rdma_ptr<LazyListSet>((uintptr_t)list); 
+    auto list = ct->New<LazyListSet>();
+    list->head_.store(head, ct);
+    list->tail_.store(tail, ct);
+
+    // force a flush to remote memory -- trying to get rid of segmentation faults 
+    volatile auto _f3 = list->tail_.load(ct);
+    _f3; 
+
+    return rdma_ptr<LazyListSet>((uintptr_t)list);
   }
 
   /// Construct a LazyListSet, setting its 'This' pointer to a remote memory
@@ -172,6 +185,11 @@ public:
         Node *new_node = ct->New<Node>();
         new_node->init(key, ct);
         new_node->next_.store(curr, ct);
+
+        // and flush again here -- to finish writing the new node to memory
+        volatile auto _f4 = new_node->next_.load(ct);
+        _f4; 
+
         pred->next_.store(new_node, ct);
       }
       curr->release(ct);
